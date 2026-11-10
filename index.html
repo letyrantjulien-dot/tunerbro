@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#22343D">
+<meta name="description" content="Chromatic and instrument tuner with needle and strobe displays. Works offline.">
+<title>TunerBro</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preload" href="fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Archivo";font-style:normal;font-display:swap;font-weight:100 900;font-stretch:62% 125%;
+  src:url(fonts/archivo-latin-ext.woff2) format("woff2");
+  unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Archivo";font-style:normal;font-display:swap;font-weight:100 900;font-stretch:62% 125%;
+  src:url(fonts/archivo-latin.woff2) format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{
+  --panel:#22343D; --panel2:#2C434E; --edge:#3D5A67;
+  --face:#DCE3DA; --face-shade:#C9D2C8; --ink:#1A262C; --ink-dim:#56686C;
+  --text:#E8EEEA; --dim:#A3B6BB;
+  --needle:#D8412F; --ok:#2E9E63; --ok-glow:#5BD89A; --amber:#F2B233;
+  --cjk:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic","PingFang SC","Microsoft YaHei","Apple SD Gothic Neo","Malgun Gothic";
+  --font:"Archivo","Helvetica Neue",Arial,var(--cjk),system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono","Liberation Mono",monospace;
+}
+html[lang="zh"]{--cjk:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Hiragino Sans GB","Source Han Sans SC"}
+html[lang="ko"]{--cjk:"Apple SD Gothic Neo","Malgun Gothic","Noto Sans CJK KR","Source Han Sans K"}
+*{box-sizing:border-box}
+html{height:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  margin:0;min-height:100%;background:var(--panel);color:var(--text);overflow-x:hidden;
+  font-family:var(--font);font-size:19px;line-height:1.45;font-variant-numeric:tabular-nums;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  -webkit-tap-highlight-color:transparent;
+}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+a{color:inherit}
+.app{max-width:560px;margin:0 auto;padding:16px 18px 28px;display:flex;flex-direction:column;gap:16px}
+.app > *{min-width:0}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:26px;font-weight:850;font-stretch:125%;letter-spacing:.005em}
+.iconbtn{width:44px;height:44px;border-radius:50%;border:1px solid var(--edge);background:var(--panel2);font-size:22px;font-weight:800;cursor:pointer;flex:none}
+
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--panel2);border:1px solid var(--edge);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;padding:8px 10px;border-radius:999px;font-size:17px;font-weight:650;color:var(--dim);cursor:pointer;min-width:0}
+.seg button[aria-pressed="true"]{background:var(--face);color:var(--ink)}
+
+.face{
+  background:linear-gradient(180deg,var(--face) 0%,var(--face) 70%,var(--face-shade) 100%);
+  color:var(--ink);border-radius:20px;padding:14px 14px 12px;position:relative;margin:0 6px;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.55),inset 0 -3px 0 rgba(0,0,0,.12),0 0 0 6px var(--panel2),0 0 0 7px var(--edge);
+}
+.lamps{display:flex;justify-content:space-between;align-items:center;padding:0 4px}
+.lamp{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:20px;font-weight:700;color:var(--ink-dim);background:var(--face-shade);box-shadow:inset 0 2px 3px rgba(0,0,0,.18);transition:background .12s,color .12s,box-shadow .12s}
+.lamp.on{background:var(--amber);color:var(--ink);box-shadow:0 0 14px rgba(242,178,51,.8)}
+.lamp.ok{width:22px;height:22px}
+.lamp.ok.on{background:var(--ok-glow);box-shadow:0 0 18px rgba(91,216,154,.95)}
+.readout{display:flex;align-items:baseline;justify-content:center;margin:-26px 0 -8px;min-height:1em;font-size:clamp(84px,27vw,132px);line-height:.95;transition:opacity .25s}
+.note{font-weight:900;font-stretch:125%;letter-spacing:-.01em}
+.acc{font-size:.46em;font-weight:800;align-self:flex-start;margin-top:.12em}
+.oct{font-size:.3em;font-weight:600;color:var(--ink-dim);margin-left:.06em}
+.face.idle .readout,.face.idle .sub{opacity:.4}
+canvas#meter{display:block;width:100%;aspect-ratio:2/1;margin-top:4px}
+.sub{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:15px;font-weight:600;color:var(--ink-dim);transition:opacity .25s}
+.sub > span{min-width:0}
+.sub .hint{color:var(--ink);font-size:16px;font-weight:700;text-align:center;flex:1}
+
+.start{border:0;border-radius:14px;padding:16px;font-size:20px;font-weight:800;font-stretch:112%;cursor:pointer;background:var(--needle);color:#fff;box-shadow:0 3px 0 #9E2C1F}
+.start.running{background:var(--panel2);color:var(--text);box-shadow:0 3px 0 var(--edge);border:1px solid var(--edge)}
+.start:active{transform:translateY(2px);box-shadow:none}
+.msg{margin:-4px 0 0;font-size:16px;color:var(--amber)}
+.msg:empty{display:none}
+
+.controls{display:flex;flex-direction:column;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--edge);background:var(--panel2);border-radius:10px;padding:10px 10px;font-size:16px;font-weight:600;font-stretch:88%;cursor:pointer;color:var(--dim);flex:1 1 auto;white-space:nowrap;line-height:1.15}
+.chips button[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.row label,.row .lbl{font-size:15px;font-weight:600;color:var(--dim)}
+select{background:var(--panel2);border:1px solid var(--edge);border-radius:10px;padding:9px 12px;font-size:18px;min-width:0;flex:1 1 180px;max-width:280px}
+.strings{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:8px}
+.strings button{border:1px solid var(--edge);background:var(--panel2);border-radius:12px;padding:10px 2px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.05;min-width:0}
+.strings .sn{font-size:24px;font-weight:850;font-stretch:100%}
+.strings .so{font-size:14px;color:var(--dim);margin-top:3px}
+.strings button.near{border-color:var(--text)}
+.strings button.near.tuned{border-color:var(--ok-glow);box-shadow:0 0 0 1px var(--ok-glow)}
+.strings button.locked{background:var(--amber);color:var(--ink);border-color:var(--amber)}
+.strings button.locked .so{color:var(--ink)}
+.help{margin:0;font-size:15px;color:var(--dim)}
+.tone{align-self:flex-start;border:1px solid var(--edge);background:none;border-radius:10px;padding:8px 14px;font-size:16px;font-weight:600;cursor:pointer}
+
+.settings{border-top:1px solid var(--edge);padding-top:12px}
+.settings summary{cursor:pointer;font-size:18px;font-weight:700;list-style:none}
+.settings summary::-webkit-details-marker{display:none}
+.settings summary::after{content:"+";float:right;color:var(--dim)}
+.settings[open] summary::after{content:"−"}
+.settings .row{margin-top:14px}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:44px;height:44px;border-radius:10px;border:1px solid var(--edge);background:var(--panel2);font-size:22px;cursor:pointer}
+.stepper output{min-width:92px;text-align:center;font-size:19px;font-weight:700}
+
+.langs{display:flex;flex-wrap:wrap;gap:6px}
+.langs button{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--edge);background:none;color:var(--dim);border-radius:999px;padding:6px 11px;cursor:pointer}
+.langs button[aria-pressed="true"]{background:var(--text);color:var(--ink);border-color:var(--text)}
+
+footer{border-top:1px solid var(--edge);padding-top:14px;display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:14px;color:var(--dim);letter-spacing:.04em}
+footer nav{display:flex;flex-wrap:wrap;gap:6px 16px}
+footer a{text-decoration:none;border-bottom:1px solid var(--edge)}
+footer a:hover{color:var(--text)}
+
+/* Onboarding */
+.ob{position:fixed;inset:0;z-index:10;background:rgba(18,28,33,.92);overflow-y:auto;
+  padding:calc(env(safe-area-inset-top,0px) + 18px) 18px calc(env(safe-area-inset-bottom,0px) + 18px)}
+.ob-inner{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.ob h2{margin:0;font-size:25px;font-weight:850;font-stretch:112%}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.tile{background:var(--panel2);border:1px solid var(--edge);border-radius:16px;padding:14px;display:grid;grid-template-columns:40px 1fr;gap:4px 12px;align-items:start}
+.tile svg{grid-row:span 2;width:40px;height:40px}
+.tile h3{margin:0;font-size:19px;font-weight:750;line-height:1.25}
+.tile p{margin:0;font-size:17px;color:var(--dim);line-height:1.4}
+.tile.private{background:var(--face);color:var(--ink);border-color:var(--face)}
+.tile.private p{color:var(--ink-dim)}
+.ob .start{margin-top:4px}
+
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.lamp,.readout,.sub{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>TunerBro</h1>
+    <button type="button" class="iconbtn" id="helpBtn" data-i18n-aria="help">?</button>
+  </header>
+
+  <div class="seg" role="group" data-i18n-aria="displayAria">
+    <button type="button" data-view="needle" aria-pressed="true" data-i18n="needle">Needle</button>
+    <button type="button" data-view="strobe" aria-pressed="false" data-i18n="strobe">Strobe</button>
+  </div>
+
+  <section class="face idle" id="face" data-i18n-aria="tunerAria">
+    <div class="lamps" aria-hidden="true">
+      <span class="lamp" id="lampFlat">♭</span>
+      <span class="lamp ok" id="lampOk"></span>
+      <span class="lamp" id="lampSharp">♯</span>
+    </div>
+    <div class="readout" id="readout" aria-live="polite">
+      <span class="note" id="noteBase">–</span><span class="acc" id="noteAcc"></span><span class="oct" id="noteOct"></span>
+    </div>
+    <canvas id="meter" aria-hidden="true"></canvas>
+    <div class="sub">
+      <span id="freq">– Hz</span>
+      <span class="hint" id="hint"></span>
+      <span id="cents">0 ¢</span>
+    </div>
+  </section>
+
+  <button type="button" class="start" id="startBtn" data-i18n="start">Start listening</button>
+  <p class="msg" id="msg" role="status"></p>
+
+  <section class="controls">
+    <div class="chips" id="instChips" role="group" data-i18n-aria="instAria">
+      <button type="button" data-inst="chromatic" data-i18n="chromatic">Chromatic</button>
+      <button type="button" data-inst="guitar" data-i18n="guitar">Guitar</button>
+      <button type="button" data-inst="bass" data-i18n="bass">Bass</button>
+      <button type="button" data-inst="ukulele" data-i18n="ukulele">Ukulele</button>
+    </div>
+    <div class="row" id="tuningRow">
+      <label for="tuning" data-i18n="tuning">Tuning</label>
+      <select id="tuning"></select>
+    </div>
+    <div class="strings" id="strings"></div>
+    <p class="help" id="stringHelp"></p>
+    <button type="button" class="tone" id="toneBtn" hidden></button>
+  </section>
+
+  <details class="settings">
+    <summary data-i18n="settings">Settings</summary>
+    <div class="row">
+      <span class="lbl" data-i18n="refA4">Reference A4</span>
+      <div class="stepper">
+        <button type="button" id="a4Down" data-i18n-aria="lower">−</button>
+        <output id="a4Out">440 Hz</output>
+        <button type="button" id="a4Up" data-i18n-aria="raise">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <label for="notation" data-i18n="notation">Note names</label>
+      <select id="notation">
+        <option value="letters">C D E F G A B</option>
+        <option value="german">C D E F G A H</option>
+        <option value="solfege" id="solfegeOpt">Do Ré Mi Fa Sol La Si</option>
+      </select>
+    </div>
+  </details>
+
+  <div class="langs" id="langs" role="group" data-i18n-aria="language"></div>
+
+  <footer>
+    <nav>
+      <a href="https://invisiblechaos.netlify.app" rel="noopener">© 2026 InvisibleChaos</a>
+      <a href="https://ko-fi.com/invisiblechaos" target="_blank" rel="noopener" data-i18n="energy">Send energy</a>
+      <a href="https://invisiblechaos.netlify.app/impressum.html" rel="noopener">Impressum</a>
+    </nav>
+    <span>TunerBro v1.1.0</span>
+  </footer>
+</div>
+
+<div class="ob" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="obTitle" hidden>
+  <div class="ob-inner">
+    <h2 id="obTitle" data-i18n="obTitle">How TunerBro works</h2>
+    <div class="tiles">
+      <div class="tile">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="14" y="5" width="12" height="20" rx="6" fill="#DCE3DA"/><path d="M9 19a11 11 0 0 0 22 0M20 30v6M14 36h12" fill="none" stroke="#DCE3DA" stroke-width="2.5" stroke-linecap="round"/></svg>
+        <h3 data-i18n="ob1t"></h3><p data-i18n="ob1b"></p>
+      </div>
+      <div class="tile">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="#DCE3DA" stroke-width="2.5" stroke-linecap="round"><path d="M10 6v28M17 6v28M24 6v28M31 6v28"/></g><circle cx="24" cy="20" r="5" fill="#F2B233"/></svg>
+        <h3 data-i18n="ob2t"></h3><p data-i18n="ob2b"></p>
+      </div>
+      <div class="tile">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 30a14 14 0 0 1 28 0" fill="none" stroke="#DCE3DA" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 5"/><path d="M20 31l5-15" stroke="#D8412F" stroke-width="3" stroke-linecap="round"/><circle cx="20" cy="31" r="3" fill="#DCE3DA"/></svg>
+        <h3 data-i18n="ob3t"></h3><p data-i18n="ob3b"></p>
+      </div>
+      <div class="tile">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="11" y="4" width="18" height="32" rx="4" fill="none" stroke="#DCE3DA" stroke-width="2.5"/><path d="M20 11v13M15 19l5 5 5-5" fill="none" stroke="#5BD89A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3 data-i18n="ob4t"></h3><p data-i18n="ob4b"></p>
+      </div>
+      <div class="tile private">
+        <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="17" width="22" height="17" rx="3" fill="#1A262C"/><path d="M14 17v-4a6 6 0 0 1 12 0v4" fill="none" stroke="#1A262C" stroke-width="3"/><circle cx="20" cy="25" r="2.5" fill="#DCE3DA"/></svg>
+        <h3 data-i18n="ob5t"></h3><p data-i18n="ob5b"></p>
+      </div>
+    </div>
+    <button type="button" class="start" id="obOk" data-i18n="obOk">Got it</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const VERSION = "1.1.0";
+
+/* ---------- Pitch detection (McLeod NSDF, coarse at half rate, refined at full rate) ---------- */
+// @@DSP-START
+const MIN_F = 27, MAX_F = 2100, RMS_GATE = 0.006, CLARITY_MIN = 0.8;
+let _dec = null, _nsdf = null;
+function nsdfAt(x, lag, W){
+  let r = 0, m = 0;
+  for (let j = 0; j < W; j++){ const a = x[j], b = x[j + lag]; r += a * b; m += a * a + b * b; }
+  return m > 0 ? 2 * r / m : 0;
+}
+function detectPitch(full, sr){
+  const N = full.length;
+  let sum = 0;
+  for (let i = 0; i < N; i++) sum += full[i] * full[i];
+  if (Math.sqrt(sum / N) < RMS_GATE) return null;
+
+  const M = N >> 1, dsr = sr / 2;
+  if (!_dec || _dec.length !== M){ _dec = new Float32Array(M); _nsdf = new Float32Array(M); }
+  const x = _dec, n = _nsdf;
+  for (let i = 0; i < M; i++) x[i] = (full[2 * i] + full[2 * i + 1]) * 0.5;
+
+  const maxLag = Math.min(Math.floor(dsr / MIN_F), M >> 1);
+  const minLag = Math.max(2, Math.floor(dsr / MAX_F));
+  const W = M - maxLag;
+  let A = 0;
+  for (let j = 0; j < W; j++) A += x[j] * x[j];
+  let S = A;
+  for (let t = 0; t <= maxLag; t++){
+    let r = 0;
+    for (let j = 0; j < W; j++) r += x[j] * x[j + t];
+    const m = A + S;
+    n[t] = m > 0 ? 2 * r / m : 0;
+    if (t < maxLag) S += x[t + W] * x[t + W] - x[t] * x[t];
+  }
+
+  // Key maxima between positive-going and negative-going zero crossings
+  const peaks = [];
+  let pos = false, best = -1, bestIdx = -1;
+  for (let t = 1; t <= maxLag; t++){
+    if (n[t - 1] <= 0 && n[t] > 0){ pos = true; best = -1; bestIdx = -1; }
+    else if (pos && n[t - 1] > 0 && n[t] <= 0){ if (bestIdx > 0) peaks.push(bestIdx); pos = false; }
+    if (pos && n[t] > best){ best = n[t]; bestIdx = t; }
+  }
+  if (pos && bestIdx > 0 && bestIdx < maxLag) peaks.push(bestIdx);
+  if (!peaks.length) return null;
+
+  let highest = 0;
+  for (const p of peaks) if (n[p] > highest) highest = n[p];
+  const thr = 0.9 * highest;
+  let tc = -1;
+  for (const p of peaks){ if (p >= minLag && n[p] >= thr){ tc = p; break; } }
+  if (tc < 0 || n[tc] < CLARITY_MIN) return null;
+  const clarity = n[tc];
+
+  // Refine around 2 * coarse lag at the full sample rate
+  const approx = 2 * tc;
+  const L0 = Math.max(2, approx - 3), L1 = approx + 3;
+  const Wf = N - L1 - 2;
+  let bi = L0, bv = -2;
+  const vals = [];
+  for (let L = L0 - 1; L <= L1 + 1; L++){
+    const v = nsdfAt(full, L, Wf);
+    vals.push(v);
+    if (L >= L0 && L <= L1 && v > bv){ bv = v; bi = L; }
+  }
+  const a = vals[bi - (L0 - 1) - 1], b = vals[bi - (L0 - 1)], c = vals[bi - (L0 - 1) + 1];
+  const den = a - 2 * b + c;
+  const shift = den !== 0 ? 0.5 * (a - c) / den : 0;
+  const lag = bi + Math.max(-0.5, Math.min(0.5, shift));
+  const freq = sr / lag;
+  if (freq < MIN_F || freq > MAX_F) return null;
+  return { freq, clarity };
+}
+// @@DSP-END
+
+/* ---------- Localisation (IC language pack) ---------- */
+const LANGS = ["en","fr","it","de","es","ja","zh","ko"];
+const I18N = {"en": {"needle": "Needle", "strobe": "Strobe", "start": "Start listening", "stop": "Stop", "idle": "Tap Start listening", "play": "Play a note", "inTune": "In tune", "up": "Tune up", "down": "Tune down", "chromatic": "Chromatic", "guitar": "Guitar", "bass": "Bass", "ukulele": "Ukulele", "tuning": "Tuning", "t_standard": "Standard", "t_halfdown": "Half step down", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "Open G", "t_4": "4-string", "t_5": "5-string", "t_ukestd": "Standard (high G)", "t_lowg": "Low G", "t_bari": "Baritone", "helpAuto": "Picks the nearest string automatically. Tap a string to lock it.", "helpLocked": "String locked. Tap it again to go back to automatic.", "playRef": "Play {n}", "stringAria": "String {i}, {n}", "settings": "Settings", "refA4": "Reference A4", "lower": "Lower reference", "raise": "Raise reference", "notation": "Note names", "language": "Language", "https": "The microphone needs a secure page. Open TunerBro over https.", "blocked": "Microphone access is blocked. Allow it in your browser's site settings, then tap Start listening.", "nomic": "No microphone found. Connect one, then tap Start listening.", "energy": "Send energy", "help": "How it works", "obTitle": "How TunerBro works", "ob1t": "Allow the microphone", "ob1b": "Tap Start listening and accept the microphone request. Play one string at a time.", "ob2t": "Pick your instrument", "ob2b": "Chromatic tunes any note. Guitar, bass and ukulele show each string, and you can lock one.", "ob3t": "Needle or strobe", "ob3b": "The needle shows how far off you are. The strobe stands still when you are in tune.", "ob4t": "Install it", "ob4b": "Add it to your home screen from the browser menu. It works offline after the first visit.", "ob5t": "Stays on your device", "ob5b": "The sound is analysed on your phone. Nothing is recorded or sent anywhere.", "obOk": "Got it", "tunerAria": "Tuner display", "displayAria": "Display style", "instAria": "Instrument"}, "fr": {"needle": "Aiguille", "strobe": "Stroboscope", "start": "Lancer l’écoute", "stop": "Arrêter", "idle": "Touchez Lancer l’écoute", "play": "Jouez une note", "inTune": "Juste", "up": "Montez", "down": "Descendez", "chromatic": "Chromatique", "guitar": "Guitare", "bass": "Basse", "ukulele": "Ukulélé", "tuning": "Accordage", "t_standard": "Standard", "t_halfdown": "Un demi-ton plus bas", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "Open G", "t_4": "4 cordes", "t_5": "5 cordes", "t_ukestd": "Standard (sol aigu)", "t_lowg": "Sol grave", "t_bari": "Baryton", "helpAuto": "Choisit automatiquement la corde la plus proche. Touchez une corde pour la verrouiller.", "helpLocked": "Corde verrouillée. Touchez-la à nouveau pour revenir en automatique.", "playRef": "Jouer {n}", "stringAria": "Corde {i}, {n}", "settings": "Réglages", "refA4": "Diapason (A4)", "lower": "Baisser le diapason", "raise": "Monter le diapason", "notation": "Noms des notes", "language": "Langue", "https": "Le micro nécessite une page sécurisée. Ouvrez TunerBro en https.", "blocked": "L’accès au micro est bloqué. Autorisez-le dans les paramètres du site de votre navigateur, puis touchez Lancer l’écoute.", "nomic": "Aucun micro détecté. Branchez-en un, puis touchez Lancer l’écoute.", "energy": "Envoyer de l’énergie", "help": "Mode d’emploi", "obTitle": "Comment fonctionne TunerBro", "ob1t": "Autorisez le micro", "ob1b": "Touchez Lancer l’écoute et acceptez l’accès au micro. Jouez une corde à la fois.", "ob2t": "Choisissez votre instrument", "ob2b": "Le mode chromatique accorde n’importe quelle note. Guitare, basse et ukulélé affichent chaque corde, que vous pouvez verrouiller.", "ob3t": "Aiguille ou stroboscope", "ob3b": "L’aiguille indique l’écart. Le stroboscope s’immobilise quand la note est juste.", "ob4t": "Installez-le", "ob4b": "Ajoutez-le à l’écran d’accueil depuis le menu du navigateur. Il fonctionne hors ligne après la première visite.", "ob5t": "Tout reste sur votre appareil", "ob5b": "Le son est analysé sur votre téléphone. Rien n’est enregistré ni envoyé.", "obOk": "Compris", "tunerAria": "Affichage de l’accordeur", "displayAria": "Style d’affichage", "instAria": "Instrument"}, "it": {"needle": "Ago", "strobe": "Strobo", "start": "Avvia ascolto", "stop": "Ferma", "idle": "Tocca Avvia ascolto", "play": "Suona una nota", "inTune": "Intonato", "up": "Alza", "down": "Abbassa", "chromatic": "Cromatico", "guitar": "Chitarra", "bass": "Basso", "ukulele": "Ukulele", "tuning": "Accordatura", "t_standard": "Standard", "t_halfdown": "Mezzo tono sotto", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "Open G", "t_4": "4 corde", "t_5": "5 corde", "t_ukestd": "Standard (Sol acuto)", "t_lowg": "Sol basso", "t_bari": "Baritono", "helpAuto": "Sceglie automaticamente la corda più vicina. Tocca una corda per bloccarla.", "helpLocked": "Corda bloccata. Toccala di nuovo per tornare all’automatico.", "playRef": "Suona {n}", "stringAria": "Corda {i}, {n}", "settings": "Impostazioni", "refA4": "Diapason (A4)", "lower": "Abbassa il diapason", "raise": "Alza il diapason", "notation": "Nomi delle note", "language": "Lingua", "https": "Il microfono richiede una pagina sicura. Apri TunerBro in https.", "blocked": "L’accesso al microfono è bloccato. Consentilo nelle impostazioni del sito del browser, poi tocca Avvia ascolto.", "nomic": "Nessun microfono trovato. Collegane uno, poi tocca Avvia ascolto.", "energy": "Manda energia", "help": "Come funziona", "obTitle": "Come funziona TunerBro", "ob1t": "Consenti il microfono", "ob1b": "Tocca Avvia ascolto e accetta la richiesta del microfono. Suona una corda alla volta.", "ob2t": "Scegli lo strumento", "ob2b": "Il cromatico accorda qualsiasi nota. Chitarra, basso e ukulele mostrano ogni corda, che puoi bloccare.", "ob3t": "Ago o strobo", "ob3b": "L’ago mostra quanto sei lontano. Lo strobo si ferma quando sei intonato.", "ob4t": "Installala", "ob4b": "Aggiungila alla schermata Home dal menu del browser. Funziona offline dopo la prima visita.", "ob5t": "Resta sul tuo dispositivo", "ob5b": "Il suono viene analizzato sul telefono. Niente viene registrato o inviato.", "obOk": "Capito", "tunerAria": "Display dell’accordatore", "displayAria": "Stile di visualizzazione", "instAria": "Strumento"}, "de": {"needle": "Nadel", "strobe": "Stroboskop", "start": "Zuhören starten", "stop": "Stopp", "idle": "Tippe auf Zuhören starten", "play": "Spiel einen Ton", "inTune": "Gestimmt", "up": "Höher stimmen", "down": "Tiefer stimmen", "chromatic": "Chromatisch", "guitar": "Gitarre", "bass": "Bass", "ukulele": "Ukulele", "tuning": "Stimmung", "t_standard": "Standard", "t_halfdown": "Halbton tiefer", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "Open G", "t_4": "4-saitig", "t_5": "5-saitig", "t_ukestd": "Standard (hohes G)", "t_lowg": "Tiefes G", "t_bari": "Bariton", "helpAuto": "Wählt automatisch die nächste Saite. Tippe auf eine Saite, um sie festzulegen.", "helpLocked": "Saite festgelegt. Tippe erneut darauf, um zur Automatik zurückzukehren.", "playRef": "{n} spielen", "stringAria": "Saite {i}, {n}", "settings": "Einstellungen", "refA4": "Kammerton (A4)", "lower": "Kammerton senken", "raise": "Kammerton erhöhen", "notation": "Notennamen", "language": "Sprache", "https": "Das Mikrofon braucht eine sichere Seite. Öffne TunerBro über https.", "blocked": "Der Mikrofonzugriff ist blockiert. Erlaube ihn in den Website-Einstellungen deines Browsers und tippe dann auf Zuhören starten.", "nomic": "Kein Mikrofon gefunden. Schließ eins an und tippe dann auf Zuhören starten.", "energy": "Energie schicken", "help": "So funktioniert’s", "obTitle": "So funktioniert TunerBro", "ob1t": "Mikrofon erlauben", "ob1b": "Tippe auf Zuhören starten und erlaube den Mikrofonzugriff. Spiel eine Saite nach der anderen.", "ob2t": "Instrument wählen", "ob2b": "Chromatisch stimmt jeden Ton. Gitarre, Bass und Ukulele zeigen jede Saite, und du kannst eine festlegen.", "ob3t": "Nadel oder Stroboskop", "ob3b": "Die Nadel zeigt, wie weit du danebenliegst. Das Stroboskop steht still, wenn der Ton sitzt.", "ob4t": "Installieren", "ob4b": "Füg es über das Browsermenü zum Startbildschirm hinzu. Nach dem ersten Besuch funktioniert es offline.", "ob5t": "Bleibt auf deinem Gerät", "ob5b": "Der Klang wird auf deinem Handy analysiert. Nichts wird aufgenommen oder verschickt.", "obOk": "Verstanden", "tunerAria": "Stimmgerät-Anzeige", "displayAria": "Anzeigestil", "instAria": "Instrument"}, "es": {"needle": "Aguja", "strobe": "Estrobo", "start": "Empezar a escuchar", "stop": "Detener", "idle": "Toca Empezar a escuchar", "play": "Toca una nota", "inTune": "Afinado", "up": "Sube", "down": "Baja", "chromatic": "Cromático", "guitar": "Guitarra", "bass": "Bajo", "ukulele": "Ukelele", "tuning": "Afinación", "t_standard": "Estándar", "t_halfdown": "Medio tono abajo", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "Open G", "t_4": "4 cuerdas", "t_5": "5 cuerdas", "t_ukestd": "Estándar (Sol agudo)", "t_lowg": "Sol grave", "t_bari": "Barítono", "helpAuto": "Elige automáticamente la cuerda más cercana. Toca una cuerda para fijarla.", "helpLocked": "Cuerda fijada. Tócala otra vez para volver al modo automático.", "playRef": "Tocar {n}", "stringAria": "Cuerda {i}, {n}", "settings": "Ajustes", "refA4": "Diapasón (A4)", "lower": "Bajar el diapasón", "raise": "Subir el diapasón", "notation": "Nombres de notas", "language": "Idioma", "https": "El micrófono necesita una página segura. Abre TunerBro con https.", "blocked": "El acceso al micrófono está bloqueado. Permítelo en los ajustes del sitio de tu navegador y toca Empezar a escuchar.", "nomic": "No se encontró ningún micrófono. Conecta uno y toca Empezar a escuchar.", "energy": "Enviar energía", "help": "Cómo funciona", "obTitle": "Cómo funciona TunerBro", "ob1t": "Permite el micrófono", "ob1b": "Toca Empezar a escuchar y acepta el permiso del micrófono. Toca una cuerda cada vez.", "ob2t": "Elige tu instrumento", "ob2b": "El modo cromático afina cualquier nota. Guitarra, bajo y ukelele muestran cada cuerda, y puedes fijar una.", "ob3t": "Aguja o estrobo", "ob3b": "La aguja muestra cuánto te desvías. El estrobo se queda quieto cuando estás afinado.", "ob4t": "Instálala", "ob4b": "Añádela a la pantalla de inicio desde el menú del navegador. Funciona sin conexión tras la primera visita.", "ob5t": "Se queda en tu dispositivo", "ob5b": "El sonido se analiza en tu teléfono. No se graba ni se envía nada.", "obOk": "Entendido", "tunerAria": "Pantalla del afinador", "displayAria": "Estilo de visualización", "instAria": "Instrumento"}, "ja": {"needle": "針", "strobe": "ストロボ", "start": "聴き取り開始", "stop": "停止", "idle": "「聴き取り開始」をタップ", "play": "音を鳴らしてください", "inTune": "合っています", "up": "上げる", "down": "下げる", "chromatic": "クロマチック", "guitar": "ギター", "bass": "ベース", "ukulele": "ウクレレ", "tuning": "チューニング", "t_standard": "レギュラー", "t_halfdown": "半音下げ", "t_dropd": "ドロップD", "t_dadgad": "DADGAD", "t_openg": "オープンG", "t_4": "4弦", "t_5": "5弦", "t_ukestd": "レギュラー(High-G)", "t_lowg": "Low-G", "t_bari": "バリトン", "helpAuto": "いちばん近い弦を自動で選びます。弦をタップすると固定できます。", "helpLocked": "弦を固定しました。もう一度タップすると自動に戻ります。", "playRef": "{n}を鳴らす", "stringAria": "弦{i}、{n}", "settings": "設定", "refA4": "基準ピッチ(A4)", "lower": "基準ピッチを下げる", "raise": "基準ピッチを上げる", "notation": "音名表記", "language": "言語", "https": "マイクの使用には安全なページが必要です。TunerBroをhttpsで開いてください。", "blocked": "マイクへのアクセスがブロックされています。ブラウザのサイト設定で許可してから「聴き取り開始」をタップしてください。", "nomic": "マイクが見つかりません。接続してから「聴き取り開始」をタップしてください。", "energy": "エネルギーを送る", "help": "使い方", "obTitle": "TunerBroの使い方", "ob1t": "マイクを許可", "ob1b": "「聴き取り開始」をタップしてマイクを許可します。弦は1本ずつ鳴らしてください。", "ob2t": "楽器を選ぶ", "ob2b": "クロマチックはどの音にも対応。ギター、ベース、ウクレレでは各弦が表示され、固定もできます。", "ob3t": "針かストロボか", "ob3b": "針はずれの大きさを示します。ストロボは音が合うと止まります。", "ob4t": "インストール", "ob4b": "ブラウザのメニューからホーム画面に追加できます。初回アクセス後はオフラインで使えます。", "ob5t": "データは端末の中だけ", "ob5b": "音はスマートフォン上で解析されます。録音も送信も一切しません。", "obOk": "OK", "tunerAria": "チューナー表示", "displayAria": "表示スタイル", "instAria": "楽器"}, "zh": {"needle": "指针", "strobe": "频闪", "start": "开始聆听", "stop": "停止", "idle": "点按“开始聆听”", "play": "请弹一个音", "inTune": "音准正确", "up": "调高", "down": "调低", "chromatic": "半音阶", "guitar": "吉他", "bass": "贝斯", "ukulele": "尤克里里", "tuning": "调弦", "t_standard": "标准", "t_halfdown": "降半音", "t_dropd": "Drop D", "t_dadgad": "DADGAD", "t_openg": "开放G", "t_4": "4弦", "t_5": "5弦", "t_ukestd": "标准(高音G)", "t_lowg": "低音G", "t_bari": "上低音", "helpAuto": "自动选择最接近的琴弦。点按琴弦可将其锁定。", "helpLocked": "琴弦已锁定。再次点按可恢复自动。", "playRef": "播放 {n}", "stringAria": "琴弦 {i},{n}", "settings": "设置", "refA4": "标准音高(A4)", "lower": "降低标准音高", "raise": "提高标准音高", "notation": "音名", "language": "语言", "https": "麦克风需要安全页面。请通过 https 打开 TunerBro。", "blocked": "麦克风访问已被阻止。请在浏览器的网站设置中允许,然后点按“开始聆听”。", "nomic": "未找到麦克风。请连接一个,然后点按“开始聆听”。", "energy": "送点能量", "help": "使用说明", "obTitle": "TunerBro 使用说明", "ob1t": "允许麦克风", "ob1b": "点按“开始聆听”并允许麦克风访问。每次只弹一根弦。", "ob2t": "选择乐器", "ob2b": "半音阶模式可校准任何音。吉他、贝斯和尤克里里会显示每根弦,并可锁定其中一根。", "ob3t": "指针或频闪", "ob3b": "指针显示偏差大小。音准正确时,频闪条纹会静止。", "ob4t": "安装", "ob4b": "可从浏览器菜单添加到主屏幕。首次访问后即可离线使用。", "ob5t": "数据只留在设备上", "ob5b": "声音在你的手机上分析。不会录音,也不会发送任何内容。", "obOk": "知道了", "tunerAria": "调音器显示", "displayAria": "显示样式", "instAria": "乐器"}, "ko": {"needle": "바늘", "strobe": "스트로브", "start": "듣기 시작", "stop": "정지", "idle": "‘듣기 시작’을 탭하세요", "play": "음을 하나 연주하세요", "inTune": "정확함", "up": "올리세요", "down": "내리세요", "chromatic": "크로매틱", "guitar": "기타", "bass": "베이스", "ukulele": "우쿨렐레", "tuning": "튜닝", "t_standard": "스탠더드", "t_halfdown": "반음 내림", "t_dropd": "드롭 D", "t_dadgad": "DADGAD", "t_openg": "오픈 G", "t_4": "4현", "t_5": "5현", "t_ukestd": "스탠더드(하이 G)", "t_lowg": "로우 G", "t_bari": "바리톤", "helpAuto": "가장 가까운 줄을 자동으로 고릅니다. 줄을 탭하면 고정됩니다.", "helpLocked": "줄이 고정되었습니다. 다시 탭하면 자동으로 돌아갑니다.", "playRef": "{n} 재생", "stringAria": "{i}번 줄, {n}", "settings": "설정", "refA4": "기준음(A4)", "lower": "기준음 낮추기", "raise": "기준음 높이기", "notation": "음이름 표기", "language": "언어", "https": "마이크를 쓰려면 보안 페이지가 필요합니다. https로 TunerBro를 여세요.", "blocked": "마이크 접근이 차단되었습니다. 브라우저의 사이트 설정에서 허용한 뒤 ‘듣기 시작’을 탭하세요.", "nomic": "마이크를 찾을 수 없습니다. 연결한 뒤 ‘듣기 시작’을 탭하세요.", "energy": "에너지 보내기", "help": "사용법", "obTitle": "TunerBro 사용법", "ob1t": "마이크 허용", "ob1b": "‘듣기 시작’을 탭하고 마이크 권한을 허용하세요. 한 번에 한 줄씩 연주하세요.", "ob2t": "악기 선택", "ob2b": "크로매틱은 어떤 음이든 조율합니다. 기타, 베이스, 우쿨렐레는 각 줄을 보여 주며 하나를 고정할 수 있습니다.", "ob3t": "바늘 또는 스트로브", "ob3b": "바늘은 얼마나 벗어났는지 보여 줍니다. 음이 맞으면 스트로브가 멈춥니다.", "ob4t": "설치하기", "ob4b": "브라우저 메뉴에서 홈 화면에 추가하세요. 첫 방문 후에는 오프라인에서도 작동합니다.", "ob5t": "기기 안에만 머뭅니다", "ob5b": "소리는 휴대폰에서 분석됩니다. 아무것도 녹음하거나 전송하지 않습니다.", "obOk": "확인", "tunerAria": "튜너 화면", "displayAria": "표시 방식", "instAria": "악기"}};
+let lang = "en";
+const t = (k, vars) => {
+  let s = (I18N[lang] && I18N[lang][k]) ?? I18N.en[k] ?? k;
+  if (vars) for (const v in vars) s = s.replace("{" + v + "}", vars[v]);
+  return s;
+};
+function pickLang(){
+  try { const s = localStorage.getItem("ic-lang"); if (s && LANGS.includes(s)) return s; } catch (e) {}
+  for (const l of (navigator.languages || [navigator.language || "en"])){
+    const p = String(l).slice(0, 2).toLowerCase(); if (LANGS.includes(p)) return p;
+  }
+  return "en";
+}
+function applyI18n(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(el => el.setAttribute("aria-label", t(el.dataset.i18nAria)));
+  $("#solfegeOpt").textContent = lang === "fr" ? "Do Ré Mi Fa Sol La Si" : "Do Re Mi Fa Sol La Si";
+  $("#startBtn").textContent = t(running ? "stop" : "start");
+  document.querySelectorAll("#langs button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+  if (msgKey) $("#msg").textContent = t(msgKey);
+  lastShown = ""; lastHint = null;
+  renderControls();
+}
+
+/* ---------- Music data ---------- */
+const NOTE_SETS = {
+  letters: ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"],
+  german:  ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","B","H"],
+  solfege: ["Do","Do♯","Re","Re♯","Mi","Fa","Fa♯","Sol","Sol♯","La","La♯","Si"]
+};
+const TUNINGS = {
+  guitar: [["standard","t_standard",[40,45,50,55,59,64]],["halfdown","t_halfdown",[39,44,49,54,58,63]],["dropd","t_dropd",[38,45,50,55,59,64]],["dadgad","t_dadgad",[38,45,50,55,57,62]],["openg","t_openg",[38,43,50,55,59,62]]],
+  bass: [["4","t_4",[28,33,38,43]],["5","t_5",[23,28,33,38,43]],["dropd","t_dropd",[26,33,38,43]]],
+  ukulele: [["standard","t_ukestd",[67,60,64,69]],["lowg","t_lowg",[55,60,64,69]],["baritone","t_bari",[50,55,59,64]]]
+};
+
+/* ---------- Settings ---------- */
+const state = { inst: "chromatic", view: "needle", a4: 440, notation: null, tuning: { guitar: "standard", bass: "4", ukulele: "standard" }, locked: null };
+try {
+  const saved = JSON.parse(localStorage.getItem("tunerbro.settings") || localStorage.getItem("stimmbro.settings") || "null");
+  if (saved) Object.assign(state, saved, { tuning: Object.assign(state.tuning, saved.tuning || {}), locked: null });
+} catch (e) {}
+function save(){
+  try { const { inst, view, a4, notation, tuning } = state; localStorage.setItem("tunerbro.settings", JSON.stringify({ inst, view, a4, notation, tuning })); } catch (e) {}
+}
+
+const $ = s => document.querySelector(s);
+const midiToFreq = m => state.a4 * Math.pow(2, (m - 69) / 12);
+const freqToMidi = f => 69 + 12 * Math.log2(f / state.a4);
+function noteParts(midi){
+  let name = NOTE_SETS[state.notation][((midi % 12) + 12) % 12];
+  if (state.notation === "solfege" && lang === "fr") name = name.replace("Re", "Ré");
+  const sharp = name.endsWith("♯");
+  let oct = Math.floor(midi / 12) - 1;
+  if (state.notation === "solfege") oct -= 1; // Franco-Italian octave numbering: La3 = 440 Hz
+  return { base: sharp ? name.slice(0, -1) : name, acc: sharp ? "♯" : "", oct };
+}
+function currentStrings(){
+  if (state.inst === "chromatic") return null;
+  const list = TUNINGS[state.inst];
+  return (list.find(x => x[0] === state.tuning[state.inst]) || list[0])[2];
+}
+
+/* ---------- UI ---------- */
+function renderControls(){
+  document.querySelectorAll("#instChips button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.inst === state.inst)));
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+  const chromatic = state.inst === "chromatic";
+  $("#tuningRow").hidden = chromatic; $("#strings").hidden = chromatic; $("#stringHelp").hidden = chromatic;
+  $("#toneBtn").hidden = chromatic || state.locked === null;
+  if (!chromatic){
+    const sel = $("#tuning"); sel.innerHTML = "";
+    for (const [id, key] of TUNINGS[state.inst]){ const o = document.createElement("option"); o.value = id; o.textContent = t(key); sel.appendChild(o); }
+    sel.value = state.tuning[state.inst];
+    const wrap = $("#strings"); wrap.innerHTML = "";
+    currentStrings().forEach((m, i) => {
+      const p = noteParts(m), b = document.createElement("button");
+      b.type = "button"; b.dataset.idx = i;
+      b.innerHTML = `<span class="sn">${p.base}${p.acc}</span><span class="so">${p.oct}</span>`;
+      b.setAttribute("aria-label", t("stringAria", { i: i + 1, n: p.base + p.acc + p.oct }));
+      b.setAttribute("aria-pressed", String(state.locked === i));
+      if (state.locked === i) b.classList.add("locked");
+      wrap.appendChild(b);
+    });
+    $("#stringHelp").textContent = t(state.locked === null ? "helpAuto" : "helpLocked");
+    if (state.locked !== null){ const p = noteParts(currentStrings()[state.locked]); $("#toneBtn").textContent = t("playRef", { n: p.base + p.acc + p.oct }); }
+  }
+  $("#a4Out").textContent = `${state.a4} Hz`;
+  $("#notation").value = state.notation;
+}
+
+$("#langs").innerHTML = LANGS.map(l => `<button type="button" data-lang="${l}" lang="${l}">${l}</button>`).join("");
+$("#langs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  lang = b.dataset.lang; try { localStorage.setItem("ic-lang", lang); } catch (x) {}
+  applyI18n();
+});
+$("#instChips").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.inst = b.dataset.inst; state.locked = null; resetTracking(); save(); renderControls(); });
+document.querySelector(".seg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; state.view = b.dataset.view; save(); renderControls(); });
+$("#tuning").addEventListener("change", e => { state.tuning[state.inst] = e.target.value; state.locked = null; resetTracking(); save(); renderControls(); });
+$("#strings").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; const i = Number(b.dataset.idx); state.locked = state.locked === i ? null : i; renderControls(); });
+$("#a4Down").addEventListener("click", () => { state.a4 = Math.max(415, state.a4 - 1); save(); renderControls(); });
+$("#a4Up").addEventListener("click", () => { state.a4 = Math.min(466, state.a4 + 1); save(); renderControls(); });
+$("#notation").addEventListener("change", e => { state.notation = e.target.value; save(); lastShown = ""; renderControls(); });
+
+/* Onboarding */
+function openOnboarding(){ $("#onboarding").hidden = false; $("#obOk").focus(); }
+function closeOnboarding(){ $("#onboarding").hidden = true; try { localStorage.setItem("tunerbro.onboarded", "1"); } catch (e) {} $("#helpBtn").focus(); }
+$("#helpBtn").addEventListener("click", openOnboarding);
+$("#obOk").addEventListener("click", closeOnboarding);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#onboarding").hidden) closeOnboarding(); });
+
+/* ---------- Audio ---------- */
+let pendingReload = false;
+let actx = null, analyser = null, stream = null, source = null, buf = null, running = false, wakeLock = null, msgKey = null;
+function setMsg(k){ msgKey = k; $("#msg").textContent = k ? t(k) : ""; }
+function ensureCtx(){
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === "suspended") actx.resume();
+  return actx;
+}
+async function start(){
+  setMsg(null);
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ setMsg("https"); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (err){ setMsg(err && err.name === "NotAllowedError" ? "blocked" : "nomic"); return; }
+  const ctx = ensureCtx();
+  source = ctx.createMediaStreamSource(stream);
+  analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = 0;
+  source.connect(analyser);
+  buf = new Float32Array(analyser.fftSize);
+  running = true;
+  $("#startBtn").textContent = t("stop"); $("#startBtn").classList.add("running");
+  requestWake();
+}
+function stop(){
+  running = false;
+  if (stream) stream.getTracks().forEach(x => x.stop());
+  if (source) source.disconnect();
+  stream = source = analyser = null;
+  $("#startBtn").textContent = t("start"); $("#startBtn").classList.remove("running");
+  active = false;
+  if (wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
+  if (pendingReload) location.reload();
+}
+$("#startBtn").addEventListener("click", () => running ? stop() : start());
+async function requestWake(){ try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && running){ requestWake(); if (actx) actx.resume(); } });
+
+$("#toneBtn").addEventListener("click", () => {
+  const strings = currentStrings(); if (!strings || state.locked === null) return;
+  const ctx = ensureCtx(), f = midiToFreq(strings[state.locked]), t0 = ctx.currentTime;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.2);
+  g.connect(ctx.destination);
+  for (const [mult, type, lvl] of [[1, "triangle", 1], [2, "sine", 0.35], [3, "sine", 0.15]]){
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = type; o.frequency.value = f * mult; og.gain.value = lvl; o.connect(og).connect(g); o.start(t0); o.stop(t0 + 2.3);
+  }
+});
+
+/* ---------- Tracking ---------- */
+let history = [], lastHit = 0, lastDetect = 0, active = false;
+let curMidi = null, curCents = 0, curFreq = 0, targetIdx = null, lastShown = "", lastHint = null;
+function resetTracking(){
+  history = []; active = false; lastShown = ""; curMidi = null; targetIdx = null;
+  $("#noteBase").textContent = "–"; $("#noteAcc").textContent = ""; $("#noteOct").textContent = "";
+}
+function track(now){
+  analyser.getFloatTimeDomainData(buf);
+  const res = detectPitch(buf, actx.sampleRate);
+  if (!res) return;
+  const m = freqToMidi(res.freq);
+  if (now - lastHit > 300) history = [];
+  history.push(m); if (history.length > 5) history.shift();
+  const sorted = history.slice().sort((a, b) => a - b), med = sorted[sorted.length >> 1];
+  if (Math.abs(m - med) > 0.5 && history.length >= 3){ lastHit = now; return; }
+  lastHit = now; active = true; curFreq = state.a4 * Math.pow(2, (med - 69) / 12);
+  const strings = currentStrings();
+  if (!strings){ curMidi = Math.round(med); targetIdx = null; }
+  else if (state.locked !== null){ targetIdx = state.locked; curMidi = strings[targetIdx]; }
+  else { let bi = 0, bd = Infinity; strings.forEach((s, i) => { const d = Math.abs(med - s); if (d < bd){ bd = d; bi = i; } }); targetIdx = bi; curMidi = strings[bi]; }
+  curCents = (med - curMidi) * 100;
+}
+
+/* ---------- Drawing ---------- */
+const canvas = $("#meter"), g2 = canvas.getContext("2d");
+let cw = 0, ch = 0;
+function sizeCanvas(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 3), r = canvas.getBoundingClientRect();
+  cw = r.width; ch = r.height; canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(sizeCanvas).observe(canvas);
+const C = { ink: "#1A262C", dim: "#56686C", needle: "#D8412F", ok: "#2E9E63", band: "rgba(46,158,99,.28)" };
+let needle = 0;
+const strobePhase = [0, 0, 0], STROBE_ROWS = [{ p: 72, m: 1 }, { p: 36, m: 2 }, { p: 18, m: 4 }];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function drawNeedle(){
+  const cx = cw / 2, cy = ch * 0.97, R = Math.min(ch * 0.9, cw * 0.5);
+  const ang = c => (c / 50) * (62 * Math.PI / 180) - Math.PI / 2;
+  g2.beginPath(); g2.strokeStyle = C.band; g2.lineWidth = 14; g2.arc(cx, cy, R - 10, ang(-3), ang(3)); g2.stroke();
+  g2.lineCap = "round";
+  for (let c = -50; c <= 50; c += 5){
+    const major = c % 25 === 0, mid = !major && c % 10 === 0, len = major ? 20 : mid ? 13 : 8;
+    const a = ang(c), cos = Math.cos(a), sin = Math.sin(a);
+    g2.beginPath(); g2.strokeStyle = major ? C.ink : C.dim; g2.lineWidth = major ? 2.5 : 1.5;
+    g2.moveTo(cx + cos * R, cy + sin * R); g2.lineTo(cx + cos * (R - len), cy + sin * (R - len)); g2.stroke();
+    if (major && c !== 0){
+      g2.fillStyle = C.ink; g2.font = "600 14px Archivo, Arial, sans-serif"; g2.textAlign = "center"; g2.textBaseline = "middle";
+      const lr = R - 36; g2.fillText(c > 0 ? "+" + c : "−" + (-c), cx + cos * lr, cy + sin * lr);
+    }
+  }
+  const a = ang(Math.max(-55, Math.min(55, needle)));
+  g2.strokeStyle = C.needle; g2.lineWidth = 3;
+  g2.beginPath(); g2.moveTo(cx - Math.cos(a) * 14, cy - Math.sin(a) * 14); g2.lineTo(cx + Math.cos(a) * (R + 4), cy + Math.sin(a) * (R + 4)); g2.stroke();
+  g2.fillStyle = C.ink; g2.beginPath(); g2.arc(cx, cy, 9, 0, Math.PI * 2); g2.fill();
+  g2.fillStyle = C.needle; g2.beginPath(); g2.arc(cx, cy, 4, 0, Math.PI * 2); g2.fill();
+}
+function drawStrobe(dt, inTune){
+  const pad = 6, gap = 8, rowH = (ch - pad * 2 - gap * 2) / 3;
+  STROBE_ROWS.forEach((row, i) => {
+    if (active && !reduceMotion) strobePhase[i] = (strobePhase[i] + needle * 1.5 * row.m * dt) % row.p;
+    const y = pad + i * (rowH + gap);
+    g2.save(); g2.beginPath(); g2.rect(0, y, cw, rowH); g2.clip();
+    g2.fillStyle = "rgba(26,38,44,.06)"; g2.fillRect(0, y, cw, rowH);
+    g2.fillStyle = inTune ? C.ok : C.ink; g2.globalAlpha = active ? 1 : 0.35;
+    const off = reduceMotion && active ? (needle / 50) * row.p : strobePhase[i];
+    for (let x = -row.p * 2 + (off % row.p); x < cw + row.p; x += row.p) g2.fillRect(x, y, row.p / 2, rowH);
+    g2.restore();
+  });
+  g2.fillStyle = C.needle;
+  g2.beginPath(); g2.moveTo(cw / 2 - 7, 0); g2.lineTo(cw / 2 + 7, 0); g2.lineTo(cw / 2, 8); g2.fill();
+  g2.beginPath(); g2.moveTo(cw / 2 - 7, ch); g2.lineTo(cw / 2 + 7, ch); g2.lineTo(cw / 2, ch - 8); g2.fill();
+}
+function updateReadout(inTune){
+  $("#face").classList.toggle("idle", !active);
+  $("#lampOk").classList.toggle("on", active && inTune);
+  $("#lampFlat").classList.toggle("on", active && !inTune && curCents < 0);
+  $("#lampSharp").classList.toggle("on", active && !inTune && curCents > 0);
+  if (curMidi !== null){
+    const p = noteParts(curMidi), key = p.base + p.acc + p.oct;
+    if (key !== lastShown){ $("#noteBase").textContent = p.base; $("#noteAcc").textContent = p.acc; $("#noteOct").textContent = p.oct; lastShown = key; }
+  }
+  let hintKey;
+  if (active){
+    $("#freq").textContent = `${curFreq.toFixed(1)} Hz`;
+    const c = Math.round(curCents);
+    $("#cents").textContent = `${c > 0 ? "+" : c < 0 ? "−" : ""}${Math.abs(c)} ¢`;
+    hintKey = inTune ? "inTune" : "";
+    if (currentStrings() && Math.abs(curCents) > 50) hintKey = curCents < 0 ? "up" : "down";
+  } else hintKey = running ? "play" : "idle";
+  if (hintKey !== lastHint){ $("#hint").textContent = hintKey ? t(hintKey) : ""; lastHint = hintKey; }
+  document.querySelectorAll("#strings button").forEach((b, i) => { const near = active && i === targetIdx; b.classList.toggle("near", near); b.classList.toggle("tuned", near && inTune); });
+}
+let lastT = performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  if (running && analyser && now - lastDetect > 30){ lastDetect = now; track(now); }
+  if (active && now - lastHit > 1500) active = false;
+  const target = active ? curCents : 0;
+  needle += (target - needle) * (1 - Math.exp(-dt * (active ? 12 : 4)));
+  const inTune = active && Math.abs(curCents) <= 2;
+  if (cw > 0){ g2.clearRect(0, 0, cw, ch); state.view === "strobe" ? drawStrobe(dt, inTune) : drawNeedle(); }
+  updateReadout(inTune);
+}
+
+/* ---------- Boot ---------- */
+lang = pickLang();
+if (!state.notation) state.notation = ({ fr: "solfege", it: "solfege", es: "solfege", de: "german" })[lang] || "letters";
+applyI18n();
+requestAnimationFrame(frame);
+let seen = false; try { seen = localStorage.getItem("tunerbro.onboarded") === "1"; } catch (e) {}
+if (!seen) openOnboarding();
+
+/* ---------- Service worker with prompt updates ---------- */
+if ("serviceWorker" in navigator){
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloaded) return; reloaded = true; if (running) pendingReload = true; else location.reload(); });
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      const check = () => reg.update().catch(() => {});
+      const promote = w => { if (w && navigator.serviceWorker.controller) w.postMessage("skip-waiting"); };
+      if (reg.waiting) promote(reg.waiting);
+      reg.addEventListener("updatefound", () => { const w = reg.installing; w && w.addEventListener("statechange", () => { if (w.state === "installed") promote(w); }); });
+      check();
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !running) check(); });
+      setInterval(check, 3600000);
+    }).catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
